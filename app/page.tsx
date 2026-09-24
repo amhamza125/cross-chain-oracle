@@ -5,7 +5,7 @@ import { createClient } from 'genlayer-js';
 import { studionet } from 'genlayer-js/chains';
 import { custom } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Activity, Shield, Network, Zap, Cpu, ArrowRightLeft, Target, Globe, CheckCircle2, MapPin, Dices, AlertCircle } from 'lucide-react';
+import { Activity, Shield, Network, Zap, Cpu, ArrowRightLeft, Target, Globe, CheckCircle2, MapPin, Dices, AlertCircle, RefreshCw } from 'lucide-react';
 
 const CONTRACT_ADDRESS = "0x5BD1B147bAf15561dC8009F3F68922b5aC95a7a5";
 
@@ -21,19 +21,14 @@ const ASSET_DEFAULTS: Record<string, string> = {
   "VIRTUAL": "8500.000000"
 };
 
-const INTENT_PRESETS = [
-  {
-    label: "Spot Grid Arbitrage",
-    prompt: "Route this asset to whichever chain provides the deepest liquidity and highest 24h volume to optimize spot grid trading boundaries."
-  },
-  {
-    label: "Maximum Security",
-    prompt: "Prioritize bridge security above all else. Route to the chain with the highest bridge_security_score, strictly ignoring gas costs."
-  },
-  {
-    label: "Micro-Tx (Lowest Gas)",
-    prompt: "Find the absolute cheapest target chain by avg_gas_usd for high-frequency micro-transactions."
-  }
+const ALL_PRESETS = [
+  { label: "Spot Grid Arbitrage", prompt: "Route this asset to whichever chain provides the deepest liquidity and highest 24h volume to optimize spot grid trading boundaries." },
+  { label: "Maximum Security", prompt: "Prioritize bridge security above all else. Route to the chain with the highest bridge_security_score, strictly ignoring gas costs." },
+  { label: "Micro-Tx (Lowest Gas)", prompt: "Find the absolute cheapest target chain by avg_gas_usd for high-frequency micro-transactions." },
+  { label: "Whale Liquidity Sweep", prompt: "I am executing a massive block trade. Route to the chain with the absolute highest liquidity_depth_usd to minimize price impact and slippage." },
+  { label: "Balanced Execution", prompt: "Find the optimal middle ground. Weight gas fees, liquidity, and security equally to find the safest, most cost-effective route." },
+  { label: "High-Yield Farming", prompt: "Route to the network with the highest trading volume and liquidity to maximize LP yield, ensuring gas is under $0.10." },
+  { label: "Aggressive Alpha Route", prompt: "Ignore security scores. Route to the chain with the absolute lowest gas fees to maximize profit margins on high-frequency trades." }
 ];
 
 export default function NexusDashboard() {
@@ -45,7 +40,9 @@ export default function NexusDashboard() {
   const [selectedAsset, setSelectedAsset] = useState(ASSETS[0]);
   const [sourceChain, setSourceChain] = useState(SOURCE_CHAINS[0]);
   const [depositAmount, setDepositAmount] = useState(ASSET_DEFAULTS["USDC"]);
-  const [userIntent, setUserIntent] = useState(INTENT_PRESETS[0].prompt);
+  const [userIntent, setUserIntent] = useState(ALL_PRESETS[0].prompt);
+  
+  const [activePresets, setActivePresets] = useState(ALL_PRESETS.slice(0, 3));
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [evalResult, setEvalResult] = useState<any>(null);
@@ -56,21 +53,22 @@ export default function NexusDashboard() {
     setDepositAmount(ASSET_DEFAULTS[asset]);
   };
 
+  const shufflePresets = () => {
+    const shuffled = [...ALL_PRESETS].sort(() => 0.5 - Math.random());
+    setActivePresets(shuffled.slice(0, 3));
+    addLog("Rotated consensus logic presets.", 'info');
+  };
+
   const generateRandomTest = () => {
     const randomAsset = ASSETS[Math.floor(Math.random() * ASSETS.length)];
     const randomChain = SOURCE_CHAINS[Math.floor(Math.random() * SOURCE_CHAINS.length)];
     const randomAmount = (Math.random() * 5000 + 100).toFixed(6);
-    
-    const randomPrompts = [
-      `I need to deploy a high-frequency spot grid bot immediately. Route these ${randomAsset} tokens to the network with the absolute lowest gas fees, regardless of liquidity.`,
-      `Move this ${randomAsset} to the chain with the highest bridge security score. I don't care about the gas cost, just make sure the bridge has no exploit history.`,
-      `Find the chain with the absolute deepest liquidity depth for ${randomAsset} so I can execute a massive block trade with zero slippage.`
-    ];
+    const randomPrompt = ALL_PRESETS[Math.floor(Math.random() * ALL_PRESETS.length)].prompt;
     
     setSelectedAsset(randomAsset);
     setSourceChain(randomChain);
     setDepositAmount(randomAmount);
-    setUserIntent(randomPrompts[Math.floor(Math.random() * randomPrompts.length)]);
+    setUserIntent(randomPrompt);
     addLog(`🎲 Randomized Chaos Test Loaded for ${randomAsset} on ${randomChain}.`, 'warning');
   };
 
@@ -181,11 +179,10 @@ export default function NexusDashboard() {
           const receipt = await client.waitForTransactionReceipt({ hash, interval: 3000, retries: 40 });
           setEvalResult(receipt);
           
-          // Parse the human-readable receipt from GenVM trace
           try {
             const rawPayload = (receipt as any).consensus_data?.leader_receipt?.[0]?.result?.payload?.readable;
             if (rawPayload) {
-              const cleaned = JSON.parse(rawPayload); // Un-escape string
+              const cleaned = JSON.parse(rawPayload);
               const finalJson = typeof cleaned === 'string' ? JSON.parse(cleaned) : cleaned;
               setParsedReceipt(finalJson);
             }
@@ -194,7 +191,7 @@ export default function NexusDashboard() {
           }
 
           addLog("Consensus reached. Omni-chain route finalized.", 'success');
-          setActiveTab('receipt'); // Auto-switch to receipt tab
+          setActiveTab('receipt');
         } catch (receiptErr) {
           addLog("Consensus finalized on-chain, but frontend lost RPC connection.", 'warning');
         }
@@ -225,7 +222,7 @@ export default function NexusDashboard() {
             </div>
             <div>
               <h1 className="text-lg font-bold text-white tracking-tight leading-tight">Nexus Omni-Chain</h1>
-              <p className="text-[10px] text-indigo-400 font-mono tracking-widest uppercase">Intent Router v4.0</p>
+              <p className="text-[10px] text-indigo-400 font-mono tracking-widest uppercase">Intent Router v5.0</p>
             </div>
           </div>
           <div>
@@ -314,11 +311,16 @@ export default function NexusDashboard() {
               </div>
 
               <div>
-                <label className="text-xs font-bold text-neutral-400 block mb-3 uppercase tracking-wider flex items-center gap-2">
-                  <Cpu className="h-3.5 w-3.5 text-emerald-400" /> Consensus Logic Params
-                </label>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-xs font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-2">
+                    <Cpu className="h-3.5 w-3.5 text-emerald-400" /> Consensus Logic Params
+                  </label>
+                  <button onClick={shufflePresets} className="flex items-center gap-1 text-[10px] text-indigo-400 hover:text-indigo-300 transition-colors">
+                    <RefreshCw className="h-3 w-3" /> SHUFFLE
+                  </button>
+                </div>
                 <div className="flex flex-col gap-2 mb-4">
-                  {INTENT_PRESETS.map(preset => (
+                  {activePresets.map(preset => (
                     <button
                       key={preset.label}
                       onClick={() => setUserIntent(preset.prompt)}
@@ -389,7 +391,7 @@ export default function NexusDashboard() {
                     className="space-y-4 font-mono text-[11px]"
                   >
                     <div className="text-neutral-500 mb-6 border-b border-white/5 pb-4">
-                      <p className="text-indigo-400 font-bold mb-1">Nexus Node Architecture v4.0</p>
+                      <p className="text-indigo-400 font-bold mb-1">Nexus Node Architecture v5.0</p>
                       <p>Omni-Chain Cryptographic Oracle: Active</p>
                     </div>
                     {terminalLogs.map((log, idx) => (
@@ -412,7 +414,6 @@ export default function NexusDashboard() {
                     {parsedReceipt ? (
                       <div className="space-y-6 h-full flex flex-col">
                         
-                        {/* Human Readable Status Badge */}
                         <div className={`p-6 rounded-3xl border flex items-center justify-between ${parsedReceipt.status === 'APPROVED' ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
                           <div className="flex items-center gap-4">
                             {parsedReceipt.status === 'APPROVED' ? <CheckCircle2 className="h-10 w-10 text-emerald-400" /> : <AlertCircle className="h-10 w-10 text-red-400" />}
@@ -429,7 +430,6 @@ export default function NexusDashboard() {
                           </div>
                         </div>
 
-                        {/* Clean Data Grid */}
                         {parsedReceipt.status === 'APPROVED' && (
                           <div className="grid grid-cols-2 gap-4">
                             <div className="bg-black/40 border border-white/5 p-4 rounded-2xl">
@@ -452,7 +452,7 @@ export default function NexusDashboard() {
                         )}
 
                         <div className="mt-4 pt-4 border-t border-white/5">
-                           <p className="text-[10px] text-neutral-600 uppercase tracking-widest mb-3">Raw Raw Block Trace</p>
+                           <p className="text-[10px] text-neutral-600 uppercase tracking-widest mb-3">Raw Block Trace</p>
                            <pre className="text-[10px] text-neutral-500 bg-[#0a0a0f] p-4 rounded-xl overflow-x-auto shadow-inner custom-scrollbar">
                              {JSON.stringify(evalResult, null, 2)}
                            </pre>
