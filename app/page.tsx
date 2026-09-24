@@ -7,7 +7,7 @@ import { custom } from 'viem';
 import { Activity, Terminal, Shield, Network, Zap, Cpu } from 'lucide-react';
 
 // REPLACE THIS WITH YOUR NEW NEXUS CONTRACT ADDRESS
-const CONTRACT_ADDRESS = "YOUR_NEW_CONTRACT_ADDRESS_HERE";
+const CONTRACT_ADDRESS = "0x5BD1B147bAf15561dC8009F3F68922b5aC95a7a5";
 
 export default function NexusDashboard() {
   const [userAddress, setUserAddress] = useState('');
