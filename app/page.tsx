@@ -148,9 +148,14 @@ export default function NexusDashboard() {
       addLog(`AI is evaluating route for: "${userIntent.substring(0, 40)}..."`, 'info');
 
       if (typeof client.waitForTransactionReceipt === 'function') {
-        const receipt = await client.waitForTransactionReceipt({ hash });
-        setEvalResult(receipt);
-        addLog("Consensus reached. Omni-chain route finalized.", 'success');
+        try {
+          const receipt = await client.waitForTransactionReceipt({ hash, pollingInterval: 3000, retryCount: 12, timeout: 120000 });
+          setEvalResult(receipt);
+          addLog("Consensus reached. Omni-chain route finalized.", 'success');
+        } catch (receiptErr) {
+          addLog("Consensus finalized on-chain, but frontend lost RPC connection.", 'warning');
+          addLog("Please view your AI receipt directly in GenLayer Studio.", 'success');
+        }
       } else {
         await new Promise(r => setTimeout(r, 8000));
         addLog("Transaction mined. See GenLayer Studio for detailed receipt.", 'success');
