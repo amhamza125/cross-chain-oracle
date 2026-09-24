@@ -5,20 +5,18 @@ import { createClient } from 'genlayer-js';
 import { studionet } from 'genlayer-js/chains';
 import { custom } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Activity, Shield, Network, Zap, Cpu, ArrowRightLeft, Target, Globe, CheckCircle2, MapPin, Dices, AlertCircle, RefreshCw } from 'lucide-react';
+import { Activity, Shield, Network, Zap, Cpu, ArrowRightLeft, Target, Globe, CheckCircle2, MapPin, Dices, AlertCircle, RefreshCw, Waypoints } from 'lucide-react';
 
 const CONTRACT_ADDRESS = "0x5BD1B147bAf15561dC8009F3F68922b5aC95a7a5";
 
-const ASSETS = ["USDC", "USDT", "ETH", "WBTC", "SAHARA", "VIRTUAL"];
+const ASSETS = ["USDC", "USDT", "ETH", "WBTC"];
 const SOURCE_CHAINS = ["ETHEREUM", "ARBITRUM", "BASE", "SOLANA", "NEAR"];
 
 const ASSET_DEFAULTS: Record<string, string> = {
   "USDC": "1000.000000",
   "USDT": "1000.000000",
   "ETH": "0.500000",
-  "WBTC": "0.015000",
-  "SAHARA": "25000.000000",
-  "VIRTUAL": "8500.000000"
+  "WBTC": "0.015000"
 };
 
 const ALL_PRESETS = [
@@ -62,14 +60,19 @@ export default function NexusDashboard() {
   const generateRandomTest = () => {
     const randomAsset = ASSETS[Math.floor(Math.random() * ASSETS.length)];
     const randomChain = SOURCE_CHAINS[Math.floor(Math.random() * SOURCE_CHAINS.length)];
-    const randomAmount = (Math.random() * 5000 + 100).toFixed(6);
+    
+    // Generate realistic amount based on asset
+    const baseVal = parseFloat(ASSET_DEFAULTS[randomAsset]);
+    const randomMultiplier = 0.5 + Math.random(); // 0.5x to 1.5x the default
+    const randomAmount = (baseVal * randomMultiplier).toFixed(6);
+    
     const randomPrompt = ALL_PRESETS[Math.floor(Math.random() * ALL_PRESETS.length)].prompt;
     
     setSelectedAsset(randomAsset);
     setSourceChain(randomChain);
     setDepositAmount(randomAmount);
     setUserIntent(randomPrompt);
-    addLog(`🎲 Randomized Chaos Test Loaded for ${randomAsset} on ${randomChain}.`, 'warning');
+    addLog(`🎲 Randomized Chaos Test Loaded: Routing ${randomAsset} from ${randomChain}.`, 'warning');
   };
 
   const addLog = (msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
@@ -222,7 +225,7 @@ export default function NexusDashboard() {
             </div>
             <div>
               <h1 className="text-lg font-bold text-white tracking-tight leading-tight">Nexus Omni-Chain</h1>
-              <p className="text-[10px] text-indigo-400 font-mono tracking-widest uppercase">Intent Router v5.0</p>
+              <p className="text-[10px] text-indigo-400 font-mono tracking-widest uppercase">Intent Router Final Build</p>
             </div>
           </div>
           <div>
@@ -262,16 +265,16 @@ export default function NexusDashboard() {
               </button>
             </div>
 
-            <div className="space-y-6">
+            <div className="space-y-5">
               <div className="grid grid-cols-2 gap-5">
                 <div>
-                  <label className="text-xs font-bold text-neutral-400 block mb-3 uppercase tracking-wider">Target Asset</label>
+                  <label className="text-[10px] font-bold text-neutral-500 block mb-2 uppercase tracking-wider">Deposit Asset</label>
                   <div className="grid grid-cols-2 gap-2">
                     {ASSETS.map(asset => (
                       <button 
                         key={asset}
                         onClick={() => handleAssetChange(asset)}
-                        className={`text-xs py-2.5 rounded-xl border transition-all font-mono font-semibold ${selectedAsset === asset ? 'bg-indigo-500 border-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'bg-black/40 border-white/5 text-neutral-400 hover:border-white/10 hover:bg-black/60'}`}
+                        className={`text-xs py-2 rounded-xl border transition-all font-mono font-semibold ${selectedAsset === asset ? 'bg-indigo-500 border-indigo-500 text-white shadow-lg shadow-indigo-500/20' : 'bg-black/40 border-white/5 text-neutral-400 hover:border-white/10 hover:bg-black/60'}`}
                       >
                         {asset}
                       </button>
@@ -280,13 +283,13 @@ export default function NexusDashboard() {
                 </div>
                 
                 <div>
-                  <label className="text-xs font-bold text-neutral-400 block mb-3 uppercase tracking-wider">Source Origin</label>
-                  <div className="grid grid-cols-1 gap-2">
-                    {SOURCE_CHAINS.slice(0,4).map(chain => (
+                  <label className="text-[10px] font-bold text-neutral-500 block mb-2 uppercase tracking-wider">Source Origin</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {SOURCE_CHAINS.map(chain => (
                       <button 
                         key={chain}
                         onClick={() => setSourceChain(chain)}
-                        className={`text-[10px] py-2.5 rounded-xl border transition-all font-mono font-semibold ${sourceChain === chain ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' : 'bg-black/40 border-white/5 text-neutral-500 hover:border-white/10'}`}
+                        className={`text-[10px] py-2 rounded-xl border transition-all font-mono font-semibold ${sourceChain === chain ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' : 'bg-black/40 border-white/5 text-neutral-400 hover:border-white/10'}`}
                       >
                         {chain}
                       </button>
@@ -295,61 +298,73 @@ export default function NexusDashboard() {
                 </div>
               </div>
 
+              {/* Explicit AI Destination Marker */}
+              <div className="bg-indigo-900/10 border border-indigo-500/20 rounded-xl p-3 flex items-center justify-between shadow-inner">
+                <div className="flex items-center gap-3">
+                  <Waypoints className="h-4 w-4 text-indigo-400" />
+                  <div>
+                    <p className="text-[9px] font-bold text-indigo-300/70 uppercase tracking-widest">Destination Chain</p>
+                    <p className="text-xs text-indigo-200 font-mono mt-0.5">Determined by Multi-LLM Consensus</p>
+                  </div>
+                </div>
+                <div className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+              </div>
+
               <div>
-                <label className="text-xs font-bold text-neutral-400 block mb-3 uppercase tracking-wider">Transaction Volume</label>
+                <label className="text-[10px] font-bold text-neutral-500 block mb-2 uppercase tracking-wider">Transaction Volume</label>
                 <div className="relative group">
                   <input 
                     type="text" 
                     value={depositAmount} 
                     onChange={e => setDepositAmount(e.target.value)}
-                    className="w-full bg-black/60 border border-white/10 rounded-2xl px-5 py-4 text-lg text-white font-mono focus:border-indigo-500 outline-none transition-all focus:ring-4 focus:ring-indigo-500/10"
+                    className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-indigo-500 outline-none transition-all focus:ring-2 focus:ring-indigo-500/20"
                   />
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/5 px-3 py-1.5 rounded-lg border border-white/10">
-                    <span className="text-xs font-mono text-indigo-300 font-bold">{selectedAsset}</span>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/5 px-2 py-1 rounded-md border border-white/10">
+                    <span className="text-[10px] font-mono text-indigo-300 font-bold">{selectedAsset}</span>
                   </div>
                 </div>
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <label className="text-xs font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-2">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider flex items-center gap-2">
                     <Cpu className="h-3.5 w-3.5 text-emerald-400" /> Consensus Logic Params
                   </label>
                   <button onClick={shufflePresets} className="flex items-center gap-1 text-[10px] text-indigo-400 hover:text-indigo-300 transition-colors">
                     <RefreshCw className="h-3 w-3" /> SHUFFLE
                   </button>
                 </div>
-                <div className="flex flex-col gap-2 mb-4">
+                <div className="flex flex-col gap-1.5 mb-3">
                   {activePresets.map(preset => (
                     <button
                       key={preset.label}
                       onClick={() => setUserIntent(preset.prompt)}
-                      className={`text-left text-xs px-4 py-3 rounded-xl border transition-all flex justify-between items-center ${userIntent === preset.prompt ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-black/30 border-white/5 text-neutral-400 hover:border-white/10 hover:bg-black/50'}`}
+                      className={`text-left text-xs px-3 py-2 rounded-xl border transition-all flex justify-between items-center ${userIntent === preset.prompt ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-black/30 border-white/5 text-neutral-400 hover:border-white/10 hover:bg-black/50'}`}
                     >
                       <span className="font-semibold">{preset.label}</span>
-                      {userIntent === preset.prompt && <CheckCircle2 className="h-4 w-4 text-emerald-400" />}
+                      {userIntent === preset.prompt && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />}
                     </button>
                   ))}
                 </div>
                 <textarea 
-                  rows={4} 
+                  rows={3} 
                   value={userIntent}
                   onChange={e => setUserIntent(e.target.value)}
-                  className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-xs text-neutral-300 focus:border-emerald-500 outline-none transition-all leading-relaxed resize-none font-mono focus:ring-4 focus:ring-emerald-500/10"
+                  className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-[11px] text-neutral-300 focus:border-emerald-500 outline-none transition-all leading-relaxed resize-none font-mono focus:ring-2 focus:ring-emerald-500/20"
                 />
               </div>
 
               <button 
                 onClick={executeNexusRoute}
                 disabled={isProcessing || !userAddress}
-                className="w-full relative group overflow-hidden rounded-2xl bg-white text-black font-extrabold text-sm py-4 transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
+                className="w-full relative group overflow-hidden rounded-xl bg-white text-black font-extrabold text-sm py-3.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:scale-[1.02] active:scale-[0.98]"
               >
                 <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-indigo-400 via-purple-400 to-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity duration-500 mix-blend-multiply" />
                 <span className="relative flex items-center justify-center gap-2">
                   {isProcessing ? (
                     <><Activity className="h-4 w-4 animate-spin" /> Routing Intelligence...</>
                   ) : (
-                    <><Zap className="h-4 w-4" /> Initialize Omni-Chain Consensus</>
+                    <><Zap className="h-4 w-4" /> Execute AI Routing</>
                   )}
                 </span>
               </button>
@@ -391,7 +406,7 @@ export default function NexusDashboard() {
                     className="space-y-4 font-mono text-[11px]"
                   >
                     <div className="text-neutral-500 mb-6 border-b border-white/5 pb-4">
-                      <p className="text-indigo-400 font-bold mb-1">Nexus Node Architecture v5.0</p>
+                      <p className="text-indigo-400 font-bold mb-1">Nexus Node Architecture vFinal</p>
                       <p>Omni-Chain Cryptographic Oracle: Active</p>
                     </div>
                     {terminalLogs.map((log, idx) => (
