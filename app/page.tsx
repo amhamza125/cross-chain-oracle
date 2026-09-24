@@ -5,6 +5,8 @@ import { createClient } from 'genlayer-js';
 import { studionet } from 'genlayer-js/chains';
 import { custom } from 'viem';
 
+const CONTRACT_ADDRESS = "0x8e58Bd7869bd7A876D676063d9f09F6dD4002264";
+
 // Pre-configured test scenarios for the AI Auditor
 const TEST_SCENARIOS = [
   {
@@ -53,7 +55,6 @@ const TEST_SCENARIOS = [
 
 export default function CrossChainOracleUI() {
   const [userAddress, setUserAddress] = useState('');
-  const [contractAddress, setContractAddress] = useState('');
   
   const [selectedScenario, setSelectedScenario] = useState(TEST_SCENARIOS[0]);
   const [evmTxHash, setEvmTxHash] = useState(TEST_SCENARIOS[0].txHash);
@@ -87,9 +88,7 @@ export default function CrossChainOracleUI() {
   };
 
   const getClient = async () => {
-    if (!userAddress) {
-      throw new Error("Wallet not connected.");
-    }
+    if (!userAddress) throw new Error("Wallet not connected.");
     
     const client = createClient({
       chain: studionet,
@@ -159,11 +158,6 @@ export default function CrossChainOracleUI() {
     setTxStatus('Initializing transaction...');
     setEvalResult(null);
 
-    if (!contractAddress || !contractAddress.startsWith('0x')) {
-      setErrorMsg("Please enter your deployed GenLayer CrossChainOracle contract address at the top.");
-      return;
-    }
-
     if (!canonicalJson || !expectedHash) {
       setErrorMsg("Please click 'Lock & Generate Cryptographic Hash' first.");
       return;
@@ -177,7 +171,7 @@ export default function CrossChainOracleUI() {
       setTxStatus('Please sign the transaction in MetaMask...');
       
       const hash = await client.writeContract({
-        address: contractAddress as `0x${string}`,
+        address: CONTRACT_ADDRESS,
         functionName: 'verify_and_bridge',
         args: [evmTxHash, canonicalJson, expectedHash],
         value: BigInt(0)
@@ -209,7 +203,7 @@ export default function CrossChainOracleUI() {
         <header className="border-b border-neutral-800 pb-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-blue-400">GenLayer Cross-Chain AI Oracle</h1>
-            <p className="text-xs text-neutral-400 mt-1">Multi-LLM Consensus Auditor & Cryptographic Push Relayer</p>
+            <p className="text-[10px] text-neutral-500 mt-1">Contract: {CONTRACT_ADDRESS}</p>
           </div>
           <div>
             {!userAddress ? (
@@ -230,17 +224,6 @@ export default function CrossChainOracleUI() {
             <p>{errorMsg}</p>
           </div>
         )}
-
-        <section className="bg-neutral-900 border border-neutral-800 p-5 rounded-xl space-y-2">
-          <label className="text-xs font-semibold text-neutral-300 block">GenLayer CrossChainOracle Contract Address:</label>
-          <input
-            type="text"
-            value={contractAddress}
-            onChange={(e) => setContractAddress(e.target.value.trim())}
-            placeholder="0x... (Paste your newly deployed contract address from GenLayer Studio)"
-            className="w-full bg-neutral-950 border border-neutral-800 rounded-lg px-3 py-2.5 text-xs text-neutral-100 font-mono focus:border-blue-500 focus:outline-none"
-          />
-        </section>
 
         <section className="bg-neutral-900 border border-neutral-800 p-5 rounded-xl space-y-4">
           <div>
