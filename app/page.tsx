@@ -160,7 +160,7 @@ export default function NexusDashboard() {
 
       if (typeof client.waitForTransactionReceipt === 'function') {
         try {
-          const receipt = await client.waitForTransactionReceipt({ hash, pollingInterval: 3000, retryCount: 15, timeout: 120000 });
+          const receipt = await client.waitForTransactionReceipt({ hash, interval: 3000, retries: 40 });
           setEvalResult(receipt);
           addLog("Consensus reached. Omni-chain route finalized.", 'success');
         } catch (receiptErr) {
