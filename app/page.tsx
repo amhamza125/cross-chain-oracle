@@ -183,7 +183,7 @@ export default function NexusDashboard() {
           
           // Parse the human-readable receipt from GenVM trace
           try {
-            const rawPayload = receipt.consensus_data?.leader_receipt?.[0]?.result?.payload?.readable;
+            const rawPayload = (receipt as any).consensus_data?.leader_receipt?.[0]?.result?.payload?.readable;
             if (rawPayload) {
               const cleaned = JSON.parse(rawPayload); // Un-escape string
               const finalJson = typeof cleaned === 'string' ? JSON.parse(cleaned) : cleaned;
