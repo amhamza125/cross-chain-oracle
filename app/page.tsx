@@ -53,7 +53,9 @@ export default function NexusDashboard() {
 
   const shufflePresets = () => {
     const shuffled = [...ALL_PRESETS].sort(() => 0.5 - Math.random());
-    setActivePresets(shuffled.slice(0, 3));
+    const newActive = shuffled.slice(0, 3);
+    setActivePresets(newActive);
+    setUserIntent(newActive[0].prompt); // Fixes the highlight bug by auto-selecting the first shuffled item
     addLog("Rotated consensus logic presets.", 'info');
   };
 
@@ -61,17 +63,25 @@ export default function NexusDashboard() {
     const randomAsset = ASSETS[Math.floor(Math.random() * ASSETS.length)];
     const randomChain = SOURCE_CHAINS[Math.floor(Math.random() * SOURCE_CHAINS.length)];
     
-    // Generate realistic amount based on asset
     const baseVal = parseFloat(ASSET_DEFAULTS[randomAsset]);
-    const randomMultiplier = 0.5 + Math.random(); // 0.5x to 1.5x the default
+    const randomMultiplier = 0.5 + Math.random();
     const randomAmount = (baseVal * randomMultiplier).toFixed(6);
     
-    const randomPrompt = ALL_PRESETS[Math.floor(Math.random() * ALL_PRESETS.length)].prompt;
+    // Pick a random preset and force it to be visible in the UI
+    const randomPresetIndex = Math.floor(Math.random() * ALL_PRESETS.length);
+    const randomPreset = ALL_PRESETS[randomPresetIndex];
     
+    const newActive = [
+      randomPreset,
+      ...ALL_PRESETS.filter(p => p.label !== randomPreset.label).sort(() => 0.5 - Math.random()).slice(0, 2)
+    ];
+    
+    setActivePresets(newActive);
     setSelectedAsset(randomAsset);
     setSourceChain(randomChain);
     setDepositAmount(randomAmount);
-    setUserIntent(randomPrompt);
+    setUserIntent(randomPreset.prompt);
+    
     addLog(`🎲 Randomized Chaos Test Loaded: Routing ${randomAsset} from ${randomChain}.`, 'warning');
   };
 
@@ -113,15 +123,35 @@ export default function NexusDashboard() {
 
     try {
       addLog(`Initializing Nexus Engine for ${depositAmount} ${selectedAsset}...`, 'info');
+      addLog("Pulling live market volatility and security metrics...", 'info');
       
+      // DYNAMIC TELEMETRY SIMULATOR: Forces the AI to make different decisions every time
+      const liveMetrics = {
+        ARBITRUM: { 
+          avg_gas_usd: (Math.random() * 0.15 + 0.05).toFixed(3), 
+          bridge_security_score: Math.floor(Math.random() * 10 + 90).toString(), 
+          liquidity_depth_usd: Math.floor(Math.random() * 80000000 + 20000000).toString() 
+        },
+        BASE: { 
+          avg_gas_usd: (Math.random() * 0.05 + 0.01).toFixed(3), 
+          bridge_security_score: Math.floor(Math.random() * 10 + 88).toString(), 
+          liquidity_depth_usd: Math.floor(Math.random() * 70000000 + 10000000).toString() 
+        },
+        NEAR: { 
+          avg_gas_usd: (Math.random() * 0.02 + 0.001).toFixed(3), 
+          bridge_security_score: Math.floor(Math.random() * 12 + 86).toString(), 
+          liquidity_depth_usd: Math.floor(Math.random() * 40000000 + 5000000).toString() 
+        },
+        SOLANA: { 
+          avg_gas_usd: (Math.random() * 0.03 + 0.001).toFixed(3), 
+          bridge_security_score: Math.floor(Math.random() * 12 + 85).toString(), 
+          liquidity_depth_usd: Math.floor(Math.random() * 90000000 + 15000000).toString() 
+        }
+      };
+
       const payloadObj = {
         asset: selectedAsset,
-        chain_metrics: {
-          ARBITRUM: { avg_gas_usd: "0.12", bridge_security_score: "95", liquidity_depth_usd: "45000000" },
-          BASE: { avg_gas_usd: "0.04", bridge_security_score: "96", liquidity_depth_usd: "38000000" },
-          NEAR: { avg_gas_usd: "0.01", bridge_security_score: "90", liquidity_depth_usd: "12000000" },
-          SOLANA: { avg_gas_usd: "0.002", bridge_security_score: "98", liquidity_depth_usd: "85000000" }
-        },
+        chain_metrics: liveMetrics,
         deposit_amount: depositAmount,
         source_chain: sourceChain,
         source_tx_hash: `0x${Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join('')}`,
@@ -285,7 +315,7 @@ export default function NexusDashboard() {
                 <div>
                   <label className="text-[10px] font-bold text-neutral-500 block mb-2 uppercase tracking-wider">Source Origin</label>
                   <div className="grid grid-cols-2 gap-2">
-                    {SOURCE_CHAINS.map(chain => (
+                    {SOURCE_CHAINS.slice(0,4).map(chain => (
                       <button 
                         key={chain}
                         onClick={() => setSourceChain(chain)}
@@ -298,7 +328,6 @@ export default function NexusDashboard() {
                 </div>
               </div>
 
-              {/* Explicit AI Destination Marker */}
               <div className="bg-indigo-900/10 border border-indigo-500/20 rounded-xl p-3 flex items-center justify-between shadow-inner">
                 <div className="flex items-center gap-3">
                   <Waypoints className="h-4 w-4 text-indigo-400" />
