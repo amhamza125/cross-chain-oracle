@@ -4,24 +4,40 @@ import { useState } from 'react';
 import { createClient } from 'genlayer-js';
 import { studionet } from 'genlayer-js/chains';
 import { custom } from 'viem';
-import { Activity, Terminal, Shield, Network, Zap, Cpu } from 'lucide-react';
+import { Activity, Shield, Network, Zap, Cpu, Wallet, ArrowRightLeft, Target } from 'lucide-react';
 
-// REPLACE THIS WITH YOUR NEW NEXUS CONTRACT ADDRESS
 const CONTRACT_ADDRESS = "0x5BD1B147bAf15561dC8009F3F68922b5aC95a7a5";
+
+const ASSETS = ["USDC", "USDT", "ETH", "WBTC"];
+const SOURCE_CHAINS = ["ETHEREUM", "ARBITRUM", "BASE"];
+
+const INTENT_PRESETS = [
+  {
+    label: "Maximum Yield",
+    prompt: "Route this asset to whichever chain provides the deepest liquidity and lowest execution fee for high-yield staking."
+  },
+  {
+    label: "Highest Security",
+    prompt: "Prioritize bridge security above all else. Route to the chain with the highest bridge_security_score, ignoring gas costs."
+  },
+  {
+    label: "Lowest Gas (Micro-Tx)",
+    prompt: "Find the absolute cheapest target chain by avg_gas_usd for high-frequency micro-transactions."
+  }
+];
 
 export default function NexusDashboard() {
   const [userAddress, setUserAddress] = useState('');
-  
-  // Terminal UI State
-  const [activeTab, setActiveTab] = useState('simulate');
+  const [activeTab, setActiveTab] = useState('terminal');
   const [terminalLogs, setTerminalLogs] = useState<{time: string, msg: string, type: string}[]>([]);
   
-  // Payload State
-  const [intentId, setIntentId] = useState(`NEXUS-INTENT-${Math.floor(1000 + Math.random() * 9000)}`);
-  const [userIntent, setUserIntent] = useState("Route 1,000 USDC to whichever chain provides the deepest liquidity and lowest execution fee for high-yield staking.");
+  // Dynamic Payload State
+  const [intentId, setIntentId] = useState(`NEXUS-${Math.floor(1000 + Math.random() * 9000)}`);
+  const [selectedAsset, setSelectedAsset] = useState(ASSETS[0]);
+  const [sourceChain, setSourceChain] = useState(SOURCE_CHAINS[0]);
   const [depositAmount, setDepositAmount] = useState("1000.000000");
+  const [userIntent, setUserIntent] = useState(INTENT_PRESETS[0].prompt);
   
-  // Transaction State
   const [isProcessing, setIsProcessing] = useState(false);
   const [evalResult, setEvalResult] = useState<any>(null);
 
@@ -56,13 +72,16 @@ export default function NexusDashboard() {
     setTerminalLogs([]);
     setEvalResult(null);
     setActiveTab('terminal');
+    
+    // Generate a fresh Intent ID for every transaction so it never hits the replay protection
+    const currentIntentId = `NEXUS-${Math.floor(1000 + Math.random() * 9000)}`;
+    setIntentId(currentIntentId);
 
     try {
-      addLog("Initializing Nexus Omni-Chain Engine...", 'info');
+      addLog(`Initializing Nexus Engine for ${depositAmount} ${selectedAsset}...`, 'info');
       
-      // 1. Build the Multi-Chain Telemetry Payload
       const payloadObj = {
-        asset: "USDC",
+        asset: selectedAsset,
         chain_metrics: {
           ARBITRUM: { avg_gas_usd: "0.12", bridge_security_score: "95", liquidity_depth_usd: "45000000" },
           BASE: { avg_gas_usd: "0.04", bridge_security_score: "96", liquidity_depth_usd: "38000000" },
@@ -70,24 +89,22 @@ export default function NexusDashboard() {
           SOLANA: { avg_gas_usd: "0.002", bridge_security_score: "98", liquidity_depth_usd: "85000000" }
         },
         deposit_amount: depositAmount,
-        source_chain: "ETHEREUM",
+        source_chain: sourceChain,
         source_tx_hash: `0x${Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join('')}`,
         user_intent: userIntent
       };
 
-      addLog("Fetching live multi-chain telemetry from EVM, Solana, and NEAR RPCs...", 'info');
+      addLog(`Fetching live telemetry for ${sourceChain}...`, 'info');
 
-      // 2. Cryptographic Canonicalization (Bypasses GenVM Sandbox errors)
+      // Cryptographic Canonicalization
       const sortedKeys = Object.keys(payloadObj).sort();
       const canonicalObj: Record<string, any> = {};
       
       for (const key of sortedKeys) {
-        // Deep sort the nested chain_metrics object
         if (key === 'chain_metrics') {
           const metrics = payloadObj[key];
           const sortedMetricsKeys = Object.keys(metrics).sort();
           const canonicalMetrics: Record<string, any> = {};
-          
           for (const mKey of sortedMetricsKeys) {
             const innerMetrics = (metrics as any)[mKey];
             const sortedInner = Object.keys(innerMetrics).sort();
@@ -105,7 +122,7 @@ export default function NexusDashboard() {
 
       const deterministicString = JSON.stringify(canonicalObj);
       
-      addLog("Generating SHA-256 Canonical Hash Lock...", 'info');
+      addLog("Generating SHA-256 Hash Lock...", 'info');
       const msgBuffer = new TextEncoder().encode(deterministicString);
       const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
       const hashHex = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -119,17 +136,16 @@ export default function NexusDashboard() {
         transport: custom((window as any).ethereum)
       } as any);
 
-      // 3. Inject payload into GenLayer
       const hash = await client.writeContract({
         address: CONTRACT_ADDRESS as `0x${string}`,
         functionName: 'route_cross_chain_intent',
-        args: [intentId, deterministicString, hashHex],
+        args: [currentIntentId, deterministicString, hashHex],
         value: BigInt(0)
       });
 
       addLog(`Transaction broadcasted: ${hash}`, 'info');
       addLog("Invoking Multi-LLM Consensus Engine (GPT-5, Claude, Gemini)...", 'warning');
-      addLog("AI is analyzing liquidity depth and evaluating bridge security scores...", 'info');
+      addLog(`AI is evaluating route for: "${userIntent.substring(0, 40)}..."`, 'info');
 
       if (typeof client.waitForTransactionReceipt === 'function') {
         const receipt = await client.waitForTransactionReceipt({ hash });
@@ -137,7 +153,7 @@ export default function NexusDashboard() {
         addLog("Consensus reached. Omni-chain route finalized.", 'success');
       } else {
         await new Promise(r => setTimeout(r, 8000));
-        addLog("Transaction mined. See GenLayer Studio for detailed JSON receipt.", 'success');
+        addLog("Transaction mined. See GenLayer Studio for detailed receipt.", 'success');
       }
 
     } catch (err: any) {
@@ -149,8 +165,6 @@ export default function NexusDashboard() {
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-neutral-300 font-sans selection:bg-indigo-500/30">
-      
-      {/* Top Navigation */}
       <nav className="border-b border-white/5 bg-black/50 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -159,7 +173,7 @@ export default function NexusDashboard() {
             </div>
             <div>
               <h1 className="text-lg font-bold text-white tracking-tight">Nexus Protocol</h1>
-              <p className="text-[10px] text-neutral-500 font-mono">Omni-Chain Intent Router v1.0</p>
+              <p className="text-[10px] text-neutral-500 font-mono">Omni-Chain Intent Router v2.0</p>
             </div>
           </div>
           <div>
@@ -184,74 +198,106 @@ export default function NexusDashboard() {
 
       <div className="max-w-7xl mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
         
-        {/* Left Column: Configuration */}
-        <div className="lg:col-span-5 space-y-6">
-          <div className="bg-[#111111] border border-white/5 rounded-2xl p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-6">
+        {/* Left Column: Dynamic Configuration */}
+        <div className="lg:col-span-6 space-y-6">
+          <div className="bg-[#111111] border border-white/5 rounded-2xl p-6 shadow-2xl space-y-6">
+            
+            <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                <Zap className="h-4 w-4 text-indigo-400" /> New Routing Intent
+                <ArrowRightLeft className="h-4 w-4 text-indigo-400" /> Multi-Asset Routing
               </h2>
               <span className="text-[10px] font-mono text-neutral-500">{intentId}</span>
             </div>
 
-            <div className="space-y-5">
+            {/* Asset & Chain Selection Grid */}
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="text-xs font-medium text-neutral-400 block mb-2">Source Deposit (USDC)</label>
-                <div className="relative">
-                  <input 
-                    type="text" 
-                    value={depositAmount} 
-                    onChange={e => setDepositAmount(e.target.value)}
-                    className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all"
-                  />
-                  <div className="absolute right-3 top-3 flex items-center gap-2">
-                    <img src="https://cryptologos.cc/logos/ethereum-eth-logo.svg" className="h-4 w-4 opacity-70" alt="ETH" />
-                    <span className="text-xs font-mono text-neutral-500">ETHEREUM</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-neutral-400 block mb-2">Natural Language Intent (AI Prompt)</label>
-                <textarea 
-                  rows={4} 
-                  value={userIntent}
-                  onChange={e => setUserIntent(e.target.value)}
-                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-neutral-300 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all leading-relaxed resize-none"
-                />
-              </div>
-
-              <div className="bg-indigo-500/5 border border-indigo-500/20 rounded-xl p-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <Cpu className="h-4 w-4 text-indigo-400" />
-                  <span className="text-xs font-semibold text-indigo-300">Omni-Chain Target Candidates</span>
-                </div>
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {['SOLANA (0.002 GAS)', 'ARBITRUM (0.12 GAS)', 'BASE (0.04 GAS)', 'NEAR (0.01 GAS)'].map(chain => (
-                    <span key={chain} className="text-[9px] font-mono bg-black/40 border border-white/10 text-neutral-400 px-2 py-1 rounded-md">
-                      {chain}
-                    </span>
+                <label className="text-xs font-medium text-neutral-400 block mb-2">Select Asset</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {ASSETS.map(asset => (
+                    <button 
+                      key={asset}
+                      onClick={() => setSelectedAsset(asset)}
+                      className={`text-xs py-2 rounded-lg border transition-all font-mono ${selectedAsset === asset ? 'bg-indigo-500/20 border-indigo-500/50 text-indigo-300' : 'bg-black/30 border-white/5 text-neutral-500 hover:border-white/10'}`}
+                    >
+                      {asset}
+                    </button>
                   ))}
                 </div>
               </div>
-
-              <button 
-                onClick={executeNexusRoute}
-                disabled={isProcessing || !userAddress}
-                className="w-full relative group overflow-hidden rounded-xl bg-white text-black font-bold text-sm py-3.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 opacity-0 group-hover:opacity-10 transition-opacity" />
-                {isProcessing ? 'Routing in progress...' : 'Compute AI Route & Execute'}
-              </button>
+              
+              <div>
+                <label className="text-xs font-medium text-neutral-400 block mb-2">Source Chain</label>
+                <div className="grid grid-cols-1 gap-2">
+                  {SOURCE_CHAINS.map(chain => (
+                    <button 
+                      key={chain}
+                      onClick={() => setSourceChain(chain)}
+                      className={`text-xs py-2 rounded-lg border transition-all font-mono ${sourceChain === chain ? 'bg-purple-500/20 border-purple-500/50 text-purple-300' : 'bg-black/30 border-white/5 text-neutral-500 hover:border-white/10'}`}
+                    >
+                      {chain}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
+
+            {/* Deposit Amount */}
+            <div>
+              <label className="text-xs font-medium text-neutral-400 block mb-2">Deposit Amount</label>
+              <div className="relative">
+                <input 
+                  type="text" 
+                  value={depositAmount} 
+                  onChange={e => setDepositAmount(e.target.value)}
+                  className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white font-mono focus:border-indigo-500 outline-none transition-all"
+                />
+                <div className="absolute right-3 top-3">
+                  <span className="text-xs font-mono text-indigo-400 font-bold">{selectedAsset}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* AI Intent Presets */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <Target className="h-4 w-4 text-emerald-400" />
+                <label className="text-xs font-medium text-neutral-400 block">AI Intent Presets</label>
+              </div>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {INTENT_PRESETS.map(preset => (
+                  <button
+                    key={preset.label}
+                    onClick={() => setUserIntent(preset.prompt)}
+                    className={`text-[10px] px-3 py-1.5 rounded-full border transition-all ${userIntent === preset.prompt ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' : 'bg-black/40 border-white/10 text-neutral-400 hover:text-white'}`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+              <textarea 
+                rows={3} 
+                value={userIntent}
+                onChange={e => setUserIntent(e.target.value)}
+                className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-neutral-300 focus:border-emerald-500 outline-none transition-all leading-relaxed resize-none"
+              />
+            </div>
+
+            <button 
+              onClick={executeNexusRoute}
+              disabled={isProcessing || !userAddress}
+              className="w-full relative group overflow-hidden rounded-xl bg-white text-black font-bold text-sm py-3.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 opacity-0 group-hover:opacity-10 transition-opacity" />
+              {isProcessing ? 'Routing in progress...' : 'Compute AI Route & Execute'}
+            </button>
           </div>
         </div>
 
         {/* Right Column: Terminal & Analytics */}
-        <div className="lg:col-span-7 space-y-6">
-          <div className="bg-[#111111] border border-white/5 rounded-2xl overflow-hidden flex flex-col h-[600px] shadow-2xl">
+        <div className="lg:col-span-6 space-y-6">
+          <div className="bg-[#111111] border border-white/5 rounded-2xl overflow-hidden flex flex-col h-[650px] shadow-2xl">
             
-            {/* Terminal Header */}
             <div className="bg-black/40 border-b border-white/5 px-4 flex items-center gap-4">
               <div className="flex gap-1.5 py-4">
                 <div className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
@@ -259,38 +305,30 @@ export default function NexusDashboard() {
                 <div className="w-2.5 h-2.5 rounded-full bg-green-500/80" />
               </div>
               <div className="flex gap-4">
-                <button 
-                  onClick={() => setActiveTab('terminal')} 
-                  className={`text-xs font-medium pb-4 border-b-2 transition-colors mt-4 ${activeTab === 'terminal' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-neutral-500 hover:text-neutral-300'}`}
-                >
+                <button onClick={() => setActiveTab('terminal')} className={`text-xs font-medium pb-4 border-b-2 transition-colors mt-4 ${activeTab === 'terminal' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-neutral-500'}`}>
                   Execution Terminal
                 </button>
-                <button 
-                  onClick={() => setActiveTab('receipt')} 
-                  className={`text-xs font-medium pb-4 border-b-2 transition-colors mt-4 ${activeTab === 'receipt' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-neutral-500 hover:text-neutral-300'}`}
-                >
+                <button onClick={() => setActiveTab('receipt')} className={`text-xs font-medium pb-4 border-b-2 transition-colors mt-4 ${activeTab === 'receipt' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-neutral-500'}`}>
                   Consensus Receipt
                 </button>
               </div>
             </div>
 
-            {/* Terminal Body */}
             <div className="flex-1 p-5 overflow-y-auto font-mono text-xs bg-black/20">
               {activeTab === 'terminal' ? (
                 <div className="space-y-3">
                   <div className="text-neutral-600 mb-4">
-                    <p>Nexus Protocol CLI v1.0.0</p>
-                    <p>Connected to GenLayer StudioNet RPC</p>
+                    <p>Nexus Protocol CLI v2.0.0</p>
+                    <p>Dynamic Payload Engine: Active</p>
                   </div>
                   
                   {terminalLogs.map((log, idx) => (
-                    <div key={idx} className="flex gap-3 animate-in fade-in slide-in-from-bottom-2">
+                    <div key={idx} className="flex gap-3">
                       <span className="text-neutral-600 shrink-0">[{log.time}]</span>
                       <span className={`${
                         log.type === 'error' ? 'text-red-400' :
                         log.type === 'success' ? 'text-emerald-400' :
-                        log.type === 'warning' ? 'text-yellow-400' :
-                        'text-indigo-300'
+                        log.type === 'warning' ? 'text-yellow-400' : 'text-indigo-300'
                       }`}>
                         {log.msg}
                       </span>
@@ -305,15 +343,11 @@ export default function NexusDashboard() {
                       </span>
                     </div>
                   )}
-                  
-                  {!isProcessing && terminalLogs.length === 0 && (
-                    <div className="text-neutral-600 italic">System idle. Awaiting intent configuration...</div>
-                  )}
                 </div>
               ) : (
                 <div className="h-full">
                   {evalResult ? (
-                    <pre className="text-[10px] text-emerald-400/80 bg-[#0a0a0a] border border-white/5 p-4 rounded-xl overflow-x-auto h-full shadow-inner">
+                    <pre className="text-[10px] text-emerald-400/80 bg-[#0a0a0a] border border-white/5 p-4 rounded-xl overflow-x-auto h-full shadow-inner whitespace-pre-wrap">
                       {JSON.stringify(evalResult, null, 2)}
                     </pre>
                   ) : (
@@ -326,7 +360,6 @@ export default function NexusDashboard() {
             </div>
           </div>
         </div>
-        
       </div>
     </div>
   );
