@@ -5,18 +5,20 @@ import { createClient } from 'genlayer-js';
 import { studionet } from 'genlayer-js/chains';
 import { custom } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Activity, Shield, Network, Zap, Cpu, ArrowRightLeft, Target, Globe, CheckCircle2, AlertTriangle, MapPin } from 'lucide-react';
+import { Activity, Shield, Network, Zap, Cpu, ArrowRightLeft, Target, Globe, CheckCircle2, MapPin, Dices, AlertCircle } from 'lucide-react';
 
 const CONTRACT_ADDRESS = "0x5BD1B147bAf15561dC8009F3F68922b5aC95a7a5";
 
-const ASSETS = ["USDC", "USDT", "ETH", "WBTC"];
+const ASSETS = ["USDC", "USDT", "ETH", "WBTC", "SAHARA", "VIRTUAL"];
 const SOURCE_CHAINS = ["ETHEREUM", "ARBITRUM", "BASE", "SOLANA", "NEAR"];
 
 const ASSET_DEFAULTS: Record<string, string> = {
   "USDC": "1000.000000",
   "USDT": "1000.000000",
   "ETH": "0.500000",
-  "WBTC": "0.015000"
+  "WBTC": "0.015000",
+  "SAHARA": "25000.000000",
+  "VIRTUAL": "8500.000000"
 };
 
 const INTENT_PRESETS = [
@@ -39,7 +41,6 @@ export default function NexusDashboard() {
   const [activeTab, setActiveTab] = useState('terminal');
   const [terminalLogs, setTerminalLogs] = useState<{time: string, msg: string, type: string}[]>([]);
   
-  // Dynamic Payload State
   const [intentId, setIntentId] = useState(`NEXUS-SEQ-${Math.floor(1000 + Math.random() * 9000)}`);
   const [selectedAsset, setSelectedAsset] = useState(ASSETS[0]);
   const [sourceChain, setSourceChain] = useState(SOURCE_CHAINS[0]);
@@ -48,10 +49,29 @@ export default function NexusDashboard() {
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [evalResult, setEvalResult] = useState<any>(null);
+  const [parsedReceipt, setParsedReceipt] = useState<any>(null);
 
   const handleAssetChange = (asset: string) => {
     setSelectedAsset(asset);
     setDepositAmount(ASSET_DEFAULTS[asset]);
+  };
+
+  const generateRandomTest = () => {
+    const randomAsset = ASSETS[Math.floor(Math.random() * ASSETS.length)];
+    const randomChain = SOURCE_CHAINS[Math.floor(Math.random() * SOURCE_CHAINS.length)];
+    const randomAmount = (Math.random() * 5000 + 100).toFixed(6);
+    
+    const randomPrompts = [
+      `I need to deploy a high-frequency spot grid bot immediately. Route these ${randomAsset} tokens to the network with the absolute lowest gas fees, regardless of liquidity.`,
+      `Move this ${randomAsset} to the chain with the highest bridge security score. I don't care about the gas cost, just make sure the bridge has no exploit history.`,
+      `Find the chain with the absolute deepest liquidity depth for ${randomAsset} so I can execute a massive block trade with zero slippage.`
+    ];
+    
+    setSelectedAsset(randomAsset);
+    setSourceChain(randomChain);
+    setDepositAmount(randomAmount);
+    setUserIntent(randomPrompts[Math.floor(Math.random() * randomPrompts.length)]);
+    addLog(`🎲 Randomized Chaos Test Loaded for ${randomAsset} on ${randomChain}.`, 'warning');
   };
 
   const addLog = (msg: string, type: 'info' | 'success' | 'warning' | 'error' = 'info') => {
@@ -84,6 +104,7 @@ export default function NexusDashboard() {
     setIsProcessing(true);
     setTerminalLogs([]);
     setEvalResult(null);
+    setParsedReceipt(null);
     setActiveTab('terminal');
     
     const currentIntentId = `NEXUS-SEQ-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -91,7 +112,6 @@ export default function NexusDashboard() {
 
     try {
       addLog(`Initializing Nexus Engine for ${depositAmount} ${selectedAsset}...`, 'info');
-      addLog("Calibrating cross-chain setting-out coordinates...", 'info');
       
       const payloadObj = {
         asset: selectedAsset,
@@ -106,8 +126,6 @@ export default function NexusDashboard() {
         source_tx_hash: `0x${Array.from({length: 64}, () => Math.floor(Math.random()*16).toString(16)).join('')}`,
         user_intent: userIntent
       };
-
-      addLog(`Fetching live telemetry and site parameters for ${sourceChain}...`, 'info');
 
       const sortedKeys = Object.keys(payloadObj).sort();
       const canonicalObj: Record<string, any> = {};
@@ -162,10 +180,23 @@ export default function NexusDashboard() {
         try {
           const receipt = await client.waitForTransactionReceipt({ hash, interval: 3000, retries: 40 });
           setEvalResult(receipt);
+          
+          // Parse the human-readable receipt from GenVM trace
+          try {
+            const rawPayload = receipt.consensus_data?.leader_receipt?.[0]?.result?.payload?.readable;
+            if (rawPayload) {
+              const cleaned = JSON.parse(rawPayload); // Un-escape string
+              const finalJson = typeof cleaned === 'string' ? JSON.parse(cleaned) : cleaned;
+              setParsedReceipt(finalJson);
+            }
+          } catch(e) {
+            console.error("Parse error", e);
+          }
+
           addLog("Consensus reached. Omni-chain route finalized.", 'success');
+          setActiveTab('receipt'); // Auto-switch to receipt tab
         } catch (receiptErr) {
           addLog("Consensus finalized on-chain, but frontend lost RPC connection.", 'warning');
-          addLog("Please view your AI receipt directly in GenLayer Studio.", 'success');
         }
       } else {
         await new Promise(r => setTimeout(r, 8000));
@@ -181,7 +212,6 @@ export default function NexusDashboard() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-neutral-300 font-sans selection:bg-indigo-500/30 overflow-x-hidden">
-      {/* Dynamic Background Elements */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-600/10 blur-[120px] rounded-full mix-blend-screen" />
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-600/10 blur-[120px] rounded-full mix-blend-screen" />
@@ -195,7 +225,7 @@ export default function NexusDashboard() {
             </div>
             <div>
               <h1 className="text-lg font-bold text-white tracking-tight leading-tight">Nexus Omni-Chain</h1>
-              <p className="text-[10px] text-indigo-400 font-mono tracking-widest uppercase">Intent Router v3.0</p>
+              <p className="text-[10px] text-indigo-400 font-mono tracking-widest uppercase">Intent Router v4.0</p>
             </div>
           </div>
           <div>
@@ -209,7 +239,7 @@ export default function NexusDashboard() {
                   <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                   <span className="text-[10px] text-emerald-400 font-mono tracking-wider">GENLAYER NETWORK</span>
                 </div>
-                <div className="bg-black/50 border border-white/10 text-neutral-300 text-xs px-4 py-2 rounded-full font-mono hover:bg-white/5 transition-colors cursor-pointer">
+                <div className="bg-black/50 border border-white/10 text-neutral-300 text-xs px-4 py-2 rounded-full font-mono">
                   {userAddress.substring(0, 6)}...{userAddress.slice(-4)}
                 </div>
               </div>
@@ -220,7 +250,6 @@ export default function NexusDashboard() {
 
       <div className="max-w-[1400px] mx-auto px-6 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 relative z-10">
         
-        {/* Left Column: Command Center */}
         <div className="lg:col-span-5 space-y-6">
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -231,11 +260,12 @@ export default function NexusDashboard() {
               <h2 className="text-sm font-bold text-white flex items-center gap-2">
                 <MapPin className="h-4 w-4 text-indigo-400" /> Route Configuration
               </h2>
-              <span className="text-[10px] font-mono text-neutral-500 bg-white/5 px-2 py-1 rounded-md border border-white/5">{intentId}</span>
+              <button onClick={generateRandomTest} className="flex items-center gap-1.5 bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/30 text-yellow-500 text-[10px] font-bold px-3 py-1.5 rounded-lg transition-all">
+                <Dices className="h-3.5 w-3.5" /> SURPRISE ME
+              </button>
             </div>
 
             <div className="space-y-6">
-              {/* Asset & Chain Selection Grid */}
               <div className="grid grid-cols-2 gap-5">
                 <div>
                   <label className="text-xs font-bold text-neutral-400 block mb-3 uppercase tracking-wider">Target Asset</label>
@@ -254,8 +284,8 @@ export default function NexusDashboard() {
                 
                 <div>
                   <label className="text-xs font-bold text-neutral-400 block mb-3 uppercase tracking-wider">Source Origin</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {SOURCE_CHAINS.map(chain => (
+                  <div className="grid grid-cols-1 gap-2">
+                    {SOURCE_CHAINS.slice(0,4).map(chain => (
                       <button 
                         key={chain}
                         onClick={() => setSourceChain(chain)}
@@ -268,7 +298,6 @@ export default function NexusDashboard() {
                 </div>
               </div>
 
-              {/* Deposit Amount */}
               <div>
                 <label className="text-xs font-bold text-neutral-400 block mb-3 uppercase tracking-wider">Transaction Volume</label>
                 <div className="relative group">
@@ -284,7 +313,6 @@ export default function NexusDashboard() {
                 </div>
               </div>
 
-              {/* AI Intent Presets */}
               <div>
                 <label className="text-xs font-bold text-neutral-400 block mb-3 uppercase tracking-wider flex items-center gap-2">
                   <Cpu className="h-3.5 w-3.5 text-emerald-400" /> Consensus Logic Params
@@ -302,7 +330,7 @@ export default function NexusDashboard() {
                   ))}
                 </div>
                 <textarea 
-                  rows={3} 
+                  rows={4} 
                   value={userIntent}
                   onChange={e => setUserIntent(e.target.value)}
                   className="w-full bg-black/40 border border-white/10 rounded-2xl px-4 py-3 text-xs text-neutral-300 focus:border-emerald-500 outline-none transition-all leading-relaxed resize-none font-mono focus:ring-4 focus:ring-emerald-500/10"
@@ -327,7 +355,6 @@ export default function NexusDashboard() {
           </motion.div>
         </div>
 
-        {/* Right Column: Terminal & Analytics */}
         <div className="lg:col-span-7 space-y-6">
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
@@ -335,7 +362,6 @@ export default function NexusDashboard() {
             transition={{ delay: 0.1 }}
             className="bg-[#0f0f13] border border-white/5 rounded-3xl overflow-hidden flex flex-col h-[760px] shadow-2xl backdrop-blur-sm"
           >
-            
             <div className="bg-black/60 border-b border-white/5 px-6 flex items-center gap-6">
               <div className="flex gap-2 py-5">
                 <div className="w-3 h-3 rounded-full bg-red-500/80 shadow-[0_0_10px_rgba(239,68,68,0.5)]" />
@@ -353,7 +379,6 @@ export default function NexusDashboard() {
             </div>
 
             <div className="flex-1 p-6 overflow-y-auto bg-[#050508] relative">
-              
               <AnimatePresence mode="wait">
                 {activeTab === 'terminal' ? (
                   <motion.div 
@@ -364,29 +389,15 @@ export default function NexusDashboard() {
                     className="space-y-4 font-mono text-[11px]"
                   >
                     <div className="text-neutral-500 mb-6 border-b border-white/5 pb-4">
-                      <p className="text-indigo-400 font-bold mb-1">Nexus Node Architecture v3.0.0</p>
-                      <p>Cryptographic Push Oracle: Active</p>
-                      <p>Multi-LLM Evaluator: Online</p>
+                      <p className="text-indigo-400 font-bold mb-1">Nexus Node Architecture v4.0</p>
+                      <p>Omni-Chain Cryptographic Oracle: Active</p>
                     </div>
-                    
                     {terminalLogs.map((log, idx) => (
-                      <motion.div 
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        key={idx} 
-                        className="flex gap-4 p-2 rounded-lg hover:bg-white/5 transition-colors"
-                      >
+                      <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} key={idx} className="flex gap-4 p-2 rounded-lg hover:bg-white/5 transition-colors">
                         <span className="text-neutral-600 shrink-0">[{log.time}]</span>
-                        <span className={`${
-                          log.type === 'error' ? 'text-red-400 font-bold' :
-                          log.type === 'success' ? 'text-emerald-400 font-bold' :
-                          log.type === 'warning' ? 'text-yellow-400' : 'text-indigo-300'
-                        }`}>
-                          {log.msg}
-                        </span>
+                        <span className={`${log.type === 'error' ? 'text-red-400 font-bold' : log.type === 'success' ? 'text-emerald-400 font-bold' : log.type === 'warning' ? 'text-yellow-400' : 'text-indigo-300'}`}>{log.msg}</span>
                       </motion.div>
                     ))}
-                    
                     {isProcessing && (
                       <div className="flex gap-4 p-2 mt-4 text-neutral-500 items-center">
                         <span className="shrink-0">[{new Date().toLocaleTimeString([], { hour12: false })}]</span>
@@ -397,25 +408,55 @@ export default function NexusDashboard() {
                     )}
                   </motion.div>
                 ) : (
-                  <motion.div 
-                    key="receipt"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="h-full"
-                  >
-                    {evalResult ? (
-                      <div className="space-y-4 h-full flex flex-col">
-                        <div className="bg-emerald-500/10 border border-emerald-500/20 p-4 rounded-2xl flex items-start gap-3">
-                          <Shield className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
-                          <div>
-                            <h3 className="text-emerald-400 font-bold text-sm">Consensus Reached & Verified</h3>
-                            <p className="text-emerald-300/70 text-xs mt-1">The Multi-LLM oracle successfully localized the optimal route.</p>
+                  <motion.div key="receipt" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-full">
+                    {parsedReceipt ? (
+                      <div className="space-y-6 h-full flex flex-col">
+                        
+                        {/* Human Readable Status Badge */}
+                        <div className={`p-6 rounded-3xl border flex items-center justify-between ${parsedReceipt.status === 'APPROVED' ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+                          <div className="flex items-center gap-4">
+                            {parsedReceipt.status === 'APPROVED' ? <CheckCircle2 className="h-10 w-10 text-emerald-400" /> : <AlertCircle className="h-10 w-10 text-red-400" />}
+                            <div>
+                              <h3 className={`font-black text-2xl tracking-wide ${parsedReceipt.status === 'APPROVED' ? 'text-emerald-400' : 'text-red-400'}`}>
+                                INTENT {parsedReceipt.status}
+                              </h3>
+                              <p className="text-neutral-400 text-xs mt-1">Multi-LLM Consensus Verification Complete</p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[10px] text-neutral-500 uppercase tracking-widest">Intent ID</p>
+                            <p className="font-mono text-sm text-neutral-300">{parsedReceipt.intent_id}</p>
                           </div>
                         </div>
-                        <pre className="text-[11px] text-neutral-300 bg-[#0a0a0f] border border-white/5 p-6 rounded-2xl overflow-x-auto flex-1 shadow-inner shadow-black/50 custom-scrollbar leading-relaxed">
-                          {JSON.stringify(evalResult, null, 2)}
-                        </pre>
+
+                        {/* Clean Data Grid */}
+                        {parsedReceipt.status === 'APPROVED' && (
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-black/40 border border-white/5 p-4 rounded-2xl">
+                              <p className="text-[10px] text-neutral-500 uppercase tracking-widest mb-1">Selected Target Chain</p>
+                              <p className="font-bold text-lg text-indigo-300">{parsedReceipt.target_chain}</p>
+                            </div>
+                            <div className="bg-black/40 border border-white/5 p-4 rounded-2xl">
+                              <p className="text-[10px] text-neutral-500 uppercase tracking-widest mb-1">Bridge Security Score</p>
+                              <p className="font-bold text-lg text-emerald-300">{parsedReceipt.safety_score} / 100</p>
+                            </div>
+                            <div className="col-span-2 bg-black/40 border border-white/5 p-5 rounded-2xl">
+                              <p className="text-[10px] text-neutral-500 uppercase tracking-widest mb-2">AI Routing Logic</p>
+                              <p className="text-sm text-neutral-300 leading-relaxed">{parsedReceipt.reason}</p>
+                            </div>
+                            <div className="col-span-2 bg-black/40 border border-white/5 p-5 rounded-2xl">
+                              <p className="text-[10px] text-neutral-500 uppercase tracking-widest mb-2">Execution Path</p>
+                              <p className="text-xs font-mono text-indigo-400">{parsedReceipt.execution_route}</p>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="mt-4 pt-4 border-t border-white/5">
+                           <p className="text-[10px] text-neutral-600 uppercase tracking-widest mb-3">Raw Raw Block Trace</p>
+                           <pre className="text-[10px] text-neutral-500 bg-[#0a0a0f] p-4 rounded-xl overflow-x-auto shadow-inner custom-scrollbar">
+                             {JSON.stringify(evalResult, null, 2)}
+                           </pre>
+                        </div>
                       </div>
                     ) : (
                       <div className="h-full flex flex-col items-center justify-center text-neutral-600 space-y-4">
@@ -426,17 +467,15 @@ export default function NexusDashboard() {
                   </motion.div>
                 )}
               </AnimatePresence>
-
             </div>
           </motion.div>
         </div>
       </div>
-
       <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.05); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.1); }
       `}</style>
     </div>
   );
