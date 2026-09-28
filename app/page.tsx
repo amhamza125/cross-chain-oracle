@@ -12,7 +12,7 @@ import {
   Shuffle, BarChart3, Network, Database, Clock, Radio, ArrowRight
 } from 'lucide-react';
 
-const CONTRACT_ADDRESS = "0x5BD1B147bAf15561dC8009F3F68922b5aC95a7a5";
+const CONTRACT_ADDRESS = "0xb120CDfDe8d23128B8D2b6282D723fa7f70EC14C";
 
 const ASSETS = ["USDC", "USDT", "ETH", "WBTC"];
 const SOURCE_CHAINS = ["ETHEREUM", "ARBITRUM", "BASE", "SOLANA", "NEAR"];
