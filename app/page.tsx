@@ -5,7 +5,7 @@ import { createClient } from 'genlayer-js';
 import { studionet } from 'genlayer-js/chains';
 import { custom } from 'viem';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Activity, Shield, Globe, CheckCircle2, MapPin, AlertCircle, RefreshCw, Waypoints, Zap, Cpu, Target, LineChart, Hash, Clock } from 'lucide-react';
+import { Activity, Shield, Globe, CheckCircle2, Target, AlertCircle, RefreshCw, Zap, LineChart, Hash, Clock } from 'lucide-react';
 
 const CONTRACT_ADDRESS = "0x5433C90Eb4D4D3b0E11d75549c39DaFc4Fcb1b8e";
 
@@ -81,11 +81,9 @@ export default function SentinelDashboard() {
         canonicalObj[k] = marketData[k];
       }
       
-      // JSON.stringify inherently formats without spaces, matching Python's separators=(',', ':')
       const canonicalString = JSON.stringify(canonicalObj);
       setPayloadString(canonicalString);
       
-      // Generate SHA-256
       const msgBuffer = new TextEncoder().encode(canonicalString);
       const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
       const hashHex = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -99,7 +97,6 @@ export default function SentinelDashboard() {
     }
   };
 
-  // Auto-generate payload when pair changes
   useEffect(() => {
     generateOraclePayload(selectedPair);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -130,7 +127,6 @@ export default function SentinelDashboard() {
         transport: custom((window as any).ethereum)
       } as any);
 
-      // Call the new evaluate_market function on the Sentinel contract
       const hash = await client.writeContract({
         address: CONTRACT_ADDRESS as `0x${string}`,
         functionName: 'evaluate_market',
@@ -168,7 +164,6 @@ export default function SentinelDashboard() {
       }
 
     } catch (err: any) {
-      // Catch and display smart contract revert reasons (e.g. Resistance condition, Data Fabrication)
       addLog(`Execution Failed (GenVM Revert): ${err.shortMessage || err.message}`, 'error');
     } finally {
       setIsProcessing(false);
